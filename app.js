@@ -35,13 +35,17 @@ function save(opts){ if(!(opts&&opts.quiet)) state.modAt=Date.now(); clearTimeou
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"), 2600); }
 
 /* ---------------- images ---------------- */
-const EXK = ["happy","shocked","thinking","stressed","letsgo"];
-const IM = {main:null, ex:{}};
+const EXK = ["normal","talking","happy","letsgo","thinking","shocked","stressed"];
+const EXF = {normal:"normal",talking:"talking",happy:"happy",letsgo:"wink",thinking:"thinking",shocked:"shocked",stressed:"stressed"};
+const POSES = ["desk","coffee","relax","back"];
+const IM = {main:null, ex:{}, pose:{}, logo:null, sub:null};
 function loadImg(src){ return new Promise(r=>{ const i=new Image(); i.onload=()=>r(i); i.onerror=()=>r(null); i.src=src; }); }
 async function loadImages(){
-  IM.main = await loadImg(state.char.image || "assets/main.jpg");
-  for(const k of EXK) IM.ex[k] = await loadImg(`assets/expr-${k}.jpg`);
-  $('charImg').src = state.char.image || "assets/main.jpg";
+  IM.main = state.char.image ? await loadImg(state.char.image) : null;
+  for(const k of POSES) IM.pose[k] = await loadImg(`assets/v2/pose-${k}.png`);
+  for(const k of EXK) IM.ex[k] = await loadImg(`assets/v2/expr-${EXF[k]}.png`);
+  IM.logo = await loadImg("assets/v2/logo.png"); IM.sub = await loadImg("assets/v2/subscribe.png");
+  $('charImg').src = state.char.image || "assets/v2/pose-desk.png";
   still();
 }
 
@@ -73,7 +77,15 @@ function exprFor(s,i,n){
   if(/shock|where did|去哪|what\?|!\?|\?!|huh|wah|cannot be|disappear|fly away|flies/.test(t)) return "shocked";
   if(/think|hmm|should i|how to|why|plan|decide|compare|calculate|can or not/.test(t)) return "thinking";
   if(i===n-1 || /follow|tip|so now|let'?s go|done|pay yourself|save|confident|thumbs|easy/.test(t)) return "letsgo";
-  return "happy";
+  if(/rich|yay|happy|best|love|shiok|nice|win|开心|好/.test(t)) return "happy";
+  if(/\?|\uff1f/.test(t)) return "talking";
+  return i===0 ? "happy" : "talking";
+}
+function poseFor(s){
+  const t=((s.shot||"")+" "+(s.vo||"")+" "+(s.ost||"")).toLowerCase();
+  if(/\b(lazy|relax\w*|weekends?|sleep\w*|bed|rest|lie|lying|chill|tired|sian|sick|mc|holidays?|skit)\b|休息|睡/.test(t)) return "relax";
+  if(/\b(coffee|kopi|teh|tea|breakfast|morning|hawker|food|eat\w*|makan|drinks?|cafe|home|mama|call)\b|咖啡|早餐|吃|妈妈/.test(t)) return "coffee";
+  return "desk";
 }
 function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
 function drawBg(c,W,H,kind){
@@ -129,9 +141,10 @@ function drawFrame(c,W,H,scenes,durs,t,rec,v){
   const z=1+0.06*p;
   c.save(); c.translate(W/2,H/2); c.scale(z,z); c.translate(-W/2,-H/2); drawBg(c,W,H,pickBg(s)); c.restore();
   const bob=Math.sin(lt*3)*H*0.006;
-  const m=IM.main;
-  if(m){ const ch=H*0.6, cw=ch*m.naturalWidth/m.naturalHeight, x=(W-cw)/2, y=H*0.97-ch+bob;
-    c.save(); rr(c,x,y,cw,ch,W*0.03); c.clip(); c.drawImage(m,x,y,cw,ch); c.restore(); }
+  const m=IM.main || IM.pose[poseFor(s)] || IM.pose.desk;
+  if(m){ let ch=H*0.56, cw=ch*m.naturalWidth/m.naturalHeight; if(cw>W*0.96){ cw=W*0.96; ch=cw*m.naturalHeight/m.naturalWidth; }
+    const x=(W-cw)/2, y=H*0.79-ch+bob;
+    if(IM.main){ c.save(); rr(c,x,y,cw,ch,W*0.03); c.clip(); c.drawImage(m,x,y,cw,ch); c.restore(); } else c.drawImage(m,x,y,cw,ch); }
   const e=IM.ex[exprFor(s,i,scenes.length)];
   if(e){ const pop=Math.min(1,lt/0.35), sc=pop<1?(0.6+0.55*Math.sin(pop*Math.PI/2)):1;
     const r=W*0.15*Math.min(1.08,sc), cx=W*0.79, cy=H*0.31+Math.sin(lt*2.2)*H*0.004;
@@ -150,6 +163,13 @@ function drawFrame(c,W,H,scenes,durs,t,rec,v){
   if(rows.length){ const lhs=rows.map(r=>r.fs*1.3), bh=lhs.reduce((a,b)=>a+b,0)+W*0.04, top=H*0.86-bh/2;
     c.fillStyle="rgba(29,24,48,.84)"; rr(c,W*0.05,top,W*0.9,bh,W*0.025); c.fill();
     let y=top+W*0.02; rows.forEach((r,k)=>{ c.font=`${r.w} ${r.fs}px "Segoe UI", -apple-system, "PingFang SC", sans-serif`; c.fillStyle=r.col; c.fillText(r.l,W/2,y+lhs[k]/2); y+=lhs[k]; }); }
+  const endIn=t-(total-2.5);
+  if(endIn>0 && IM.logo){ const p=Math.min(1,endIn/0.4), e2=1-Math.pow(1-p,3);
+    c.save(); c.globalAlpha=0.55*e2; c.fillStyle="#1d1830"; c.fillRect(0,0,W,H); c.restore();
+    const lw=W*0.84, lh=lw*IM.logo.naturalHeight/IM.logo.naturalWidth, ly=H*0.30-(1-e2)*H*0.05;
+    c.save(); c.globalAlpha=e2; c.drawImage(IM.logo,(W-lw)/2,ly,lw,lh);
+    if(IM.sub){ const sw=W*0.66, sh2=sw*IM.sub.naturalHeight/IM.sub.naturalWidth, pulse=1+0.04*Math.sin(endIn*6); c.translate(W/2,ly+lh+H*0.09); c.scale(pulse,pulse); c.drawImage(IM.sub,-sw/2,-sh2/2,sw,sh2); }
+    c.restore(); }
   if(!rec){ c.fillStyle="rgba(0,0,0,.15)"; c.fillRect(0,H-6,W,6); c.fillStyle="#d6383f"; c.fillRect(0,H-6,W*Math.min(1,t/total),6); }
 }
 

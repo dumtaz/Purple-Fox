@@ -1,10 +1,9 @@
 /* Offline cache for Purple Fox. Bump VERSION when you change any file. */
-const VERSION = "pf-v4";
+const VERSION = "pf-v5";
 const FILES = [
   "./", "index.html", "app.css", "app.js", "seed.js", "tts.js", "studio.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
-  "assets/main.jpg", "assets/expr-happy.jpg", "assets/expr-shocked.jpg",
-  "assets/expr-thinking.jpg", "assets/expr-stressed.jpg", "assets/expr-letsgo.jpg"
+  "assets/v2/pose-desk.png", "assets/v2/pose-coffee.png", "assets/v2/pose-relax.png", "assets/v2/pose-back.png", "assets/v2/logo.png", "assets/v2/subscribe.png", "assets/v2/expr-normal.png", "assets/v2/expr-talking.png", "assets/v2/expr-happy.png", "assets/v2/expr-wink.png", "assets/v2/expr-thinking.png", "assets/v2/expr-shocked.png", "assets/v2/expr-stressed.png"
 ];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

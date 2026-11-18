@@ -16,13 +16,14 @@ const today0 = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
 const CHAR_DEFAULT = {
   name:"Purple Fox",
   bio:"A young Singaporean working in HR & Finance, figuring out adulting one payslip at a time. Loves bubble tea, travel, budgeting and foxes. Goal: financial freedom and a happy life.",
-  look:"young man drawn chibi anime-style with purple fox ears (white inner fur) and a fluffy purple fox tail with a white tip, messy dark brown-black hair, round black glasses, big violet eyes, rosy cheeks, purple hoodie with white drawstrings and a small fox logo on the chest, often holding bubble tea",
+  look:"young man drawn chibi anime-style with purple fox ears (white inner fur) and a big fluffy purple fox tail fading to a white tip, messy dark brown-black hair, round black glasses, big violet eyes, rosy cheeks, purple hoodie with white drawstrings, a small white fox-face logo on the chest and a white paw print on the back, sometimes wearing purple headphones with a fox logo, often with bubble tea or a fox mug and a small purple fox plushie",
   pers:"Chill, smart, curious and kind. Gets stressed about money, then figures it out. Talks in English with 华语 punchlines and light Singlish (lah, leh, sia).",
   cast:"Mama: warm Singaporean auntie in a floral blouse, short permed hair, reading glasses on a chain. Jess: confident colleague, high ponytail, oversized blazer.",
   style:"cute chibi anime-style 2D illustration, soft pastel lavender palette, clean outlines, soft shading, rounded proportions, Singapore setting details",
   neg:"no watermark, no extra fingers, no photorealism, no distorted text"
 };
-const CH = () => { const c=P().state.char; for(const k in CHAR_DEFAULT) if(c[k]==null) c[k]=CHAR_DEFAULT[k]; return c; };
+const OLD_LOOK = "young man drawn chibi anime-style with purple fox ears (white inner fur) and a fluffy purple fox tail with a white tip, messy dark brown-black hair, round black glasses, big violet eyes, rosy cheeks, purple hoodie with white drawstrings and a small fox logo on the chest, often holding bubble tea";
+const CH = () => { const c=P().state.char; for(const k in CHAR_DEFAULT) if(c[k]==null) c[k]=CHAR_DEFAULT[k]; if(c.look===OLD_LOOK) c.look=CHAR_DEFAULT.look; return c; };
 const CF = {cName:"name", cBio:"bio", cLook:"look", cPers:"pers", cCast:"cast", cStyle:"style", cNeg:"neg"};
 function renderCharacter(){
   const c=CH();
