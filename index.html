@@ -78,6 +78,8 @@
             <option value="en-led">English-led, 华语 for punchlines</option>
             <option value="half">Half English, half 华语</option>
             <option value="zh-led">华语-led, English for terms (CPF, BTO, MC)</option>
+            <option value="en">All English</option>
+            <option value="zh">全中文 (all Mandarin)</option>
           </select></label>
         <label class="f">Storyboard: one scene per line
           <textarea id="sb" rows="10" placeholder="Scene 1: Purple Fox opens his first payslip in the office pantry...&#10;Scene 2: ...&#10;Scene 3: ...&#10;Scene 4: ..."></textarea></label>
@@ -119,6 +121,13 @@
                 <option value="none">No voice</option>
               </select></label>
           </div>
+          <div class="row">
+            <label class="f">Speak in
+              <select id="mSpeak"><option value="vo">Original line (as written)</option><option value="en">All English</option><option value="zh">全中文 (Mandarin)</option></select></label>
+            <label class="f">Subtitles
+              <select id="mSubs"><option value="voice">Same as voice</option><option value="en">English</option><option value="zh">中文</option><option value="both">中文 + English</option><option value="none">No subtitles</option></select></label>
+          </div>
+          <div class="row"><button class="btn small" id="mTranslate">Make English &amp; 中文 with AI</button><span class="hint" id="langMsg"></span></div>
           <div id="fileVoice" class="row" hidden>
             <label class="btn filebtn">Load voice file<input type="file" id="mFile" accept="audio/*" class="sr"></label>
             <span class="hint" id="mFileMsg"></span>

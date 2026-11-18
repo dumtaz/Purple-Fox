@@ -28,5 +28,12 @@ What stays on each device: made videos, voice recordings, the AI voices, and the
 - **Windows (Edge or Chrome):** open the app address, then click the install icon in the address bar.
 - **iPad (Safari):** Share → Add to Home Screen.
 
+## Language and subtitles
+On the **Make** tab, each video has two choices:
+- **Speak in:** Original line (your English + 华语 mix), **All English**, or **全中文**.
+- **Subtitles:** Same as voice, **English**, **中文**, **中文 + English** (two lines), or none.
+
+For All English, 全中文 or bilingual subtitles, every line needs an English and a 中文 version. **Write scenes with AI** now makes both automatically. For older videos, press **Make English & 中文 with AI**, or type them into each scene. In the **Write** tab you can also pick **All English** or **全中文** as the language mix.
+
 ## Daily use
 **Plan → Plan 7 ideas with AI → Add to plan**, then **Write → Write scenes with AI** for each one, then **Plan → Make all videos**. Upload the files to TikTok and YouTube Shorts, and use **Copy all** in the post pack for the captions.

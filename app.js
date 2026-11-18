@@ -121,7 +121,7 @@ function wrapLines(c,text,maxW){
   for(const w of words){ const test=line+w; if(c.measureText(test).width>maxW && line.trim()){ lines.push(line.trim()); line=w.trim(); } else line=test; }
   if(line.trim()) lines.push(line.trim()); return lines;
 }
-function drawFrame(c,W,H,scenes,durs,t,rec){
+function drawFrame(c,W,H,scenes,durs,t,rec,v){
   const total=durs.reduce((a,b)=>a+b,0);
   let acc=0,i=0; for(;i<scenes.length;i++){ if(t<acc+durs[i]) break; acc+=durs[i]; }
   if(i>=scenes.length){ i=scenes.length-1; acc=total-durs[i]; }
@@ -143,11 +143,26 @@ function drawFrame(c,W,H,scenes,durs,t,rec){
   const ol=wrapLines(c,s.ost||"",W*0.8), lh=W*0.08;
   if(ol.length){ const bh=ol.length*lh+W*0.05; c.fillStyle="#fff"; c.strokeStyle="#1d1830"; c.lineWidth=W*0.008;
     rr(c,W*0.06,H*0.05,W*0.88,bh,W*0.03); c.fill(); c.stroke(); c.fillStyle="#1d1830"; ol.forEach((l,k)=>c.fillText(l,W/2,H*0.05+W*0.025+lh*(k+0.5))); }
-  c.font=`600 ${W*0.045}px "Segoe UI", -apple-system, "PingFang SC", sans-serif`;
-  const sl=wrapLines(c,(s.vo||"").replace(/^[^:：]{1,12}[:：]\s*/,""),W*0.84).slice(0,3), sh=W*0.058;
-  if(sl.length){ const bh=sl.length*sh+W*0.04; c.fillStyle="rgba(29,24,48,.84)"; rr(c,W*0.05,H*0.86-bh/2,W*0.9,bh,W*0.025); c.fill();
-    c.fillStyle="#fff"; sl.forEach((l,k)=>c.fillText(l,W/2,H*0.86-bh/2+W*0.02+sh*(k+0.5))); }
+  const blocks=subBlocks(v||{subs:"voice"}, s), rows=[];
+  const two=blocks.length>1;
+  blocks.forEach((b,bi)=>{ const fs=W*(b.big?(two?0.043:0.045):0.034); c.font=`${b.big?600:500} ${fs}px "Segoe UI", -apple-system, "PingFang SC", sans-serif`;
+    wrapLines(c,b.text,W*0.84).slice(0,two?2:3).forEach(l=>rows.push({l, fs, w:b.big?600:500, col:b.big?"#ffffff":"#e3dbff"})); });
+  if(rows.length){ const lhs=rows.map(r=>r.fs*1.3), bh=lhs.reduce((a,b)=>a+b,0)+W*0.04, top=H*0.86-bh/2;
+    c.fillStyle="rgba(29,24,48,.84)"; rr(c,W*0.05,top,W*0.9,bh,W*0.025); c.fill();
+    let y=top+W*0.02; rows.forEach((r,k)=>{ c.font=`${r.w} ${r.fs}px "Segoe UI", -apple-system, "PingFang SC", sans-serif`; c.fillStyle=r.col; c.fillText(r.l,W/2,y+lhs[k]/2); y+=lhs[k]; }); }
   if(!rec){ c.fillStyle="rgba(0,0,0,.15)"; c.fillRect(0,H-6,W,6); c.fillStyle="#d6383f"; c.fillRect(0,H-6,W*Math.min(1,t/total),6); }
+}
+
+/* ---------------- language ---------------- */
+const stripName = t => String(t||"").replace(/^[^:\uff1a]{1,12}[:\uff1a]\s*/,"");
+function spokenText(v,s){ const m=v&&v.speak; return m==="en" && s.sub_en ? s.sub_en : m==="zh" && s.sub_zh ? s.sub_zh : s.vo; }
+function subBlocks(v,s){ // [{text, big}] stacked bottom subtitles
+  const m=(v&&v.subs)||"voice";
+  if(m==="en") return [{text:stripName(s.sub_en||spokenText(v,s)), big:true}];
+  if(m==="zh") return [{text:stripName(s.sub_zh||spokenText(v,s)), big:true}];
+  if(m==="both"){ const out=[]; if(s.sub_zh) out.push({text:stripName(s.sub_zh), big:true}); if(s.sub_en) out.push({text:stripName(s.sub_en), big:false}); return out.length?out:[{text:stripName(spokenText(v,s)),big:true}]; }
+  if(m==="none") return [];
+  return [{text:stripName(spokenText(v,s)), big:true}];
 }
 
 /* ---------------- videos ---------------- */
@@ -157,7 +172,7 @@ function normVideo(v){
   v.output = v.output || {scenes:[]};
   v.output.scenes = (v.output.scenes||[]).map(s=>Object.assign({sid:uid(), shot:"", dur:6, vo:"", ost:""}, s));
   v.status = STATUSES.includes(v.status) ? v.status : "Prompts ready";
-  v.voiceMode = v.voiceMode || "ai";
+  v.voiceMode = v.voiceMode || "ai"; v.speak = v.speak || "vo"; v.subs = v.subs || "voice";
   v.len = v.len || "30"; v.mix = v.mix || "en-led"; v.storyboard = v.storyboard || ""; v.pillar = v.pillar || "";
   return v;
 }
@@ -226,13 +241,19 @@ function openMake(){
   if(!v) return;
   $('mTitle').value=v.title||""; $('mDate').value=v.date||"";
   $('mStatus').innerHTML=STATUSES.map(s=>`<option${s===v.status?" selected":""}>${s}</option>`).join("");
-  $('mVoiceMode').value=v.voiceMode;
+  $('mVoiceMode').value=v.voiceMode; $('mSpeak').value=v.speak; $('mSubs').value=v.subs; langNote();
   $('fileVoice').hidden = v.voiceMode!=="file";
   renderScenes(); renderPack(); fileInfo(); still();
 }
 $('mTitle').addEventListener("input", ()=>{ const v=cur(); v.title=$('mTitle').value; save(); renderList(); renderPack(); });
 $('mDate').addEventListener("change", ()=>{ const v=cur(); v.date=$('mDate').value; save(); renderList(); });
 $('mStatus').addEventListener("change", ()=>{ const v=cur(); v.status=$('mStatus').value; save(); renderList(); });
+function langNote(){ const v=cur(); if(!v) return; const sc=v.output.scenes, need=(v.speak!=="vo"||v.subs!=="voice"); const miss=sc.filter(s=>(!s.sub_en||!s.sub_zh) && s.vo).length;
+  $('langMsg').textContent = need && miss ? `${miss} scene${miss===1?"":"s"} need English / 中文 versions. Press Make English & 中文 with AI, or type them into each scene.` : ""; }
+$('mSpeak').addEventListener("change", ()=>{ const v=cur(); v.speak=$('mSpeak').value; save(); langNote(); still(); });
+$('mSubs').addEventListener("change", ()=>{ const v=cur(); v.subs=$('mSubs').value; save(); langNote(); still(); });
+$('mTranslate').addEventListener("click", async ()=>{ const v=cur(); if(!v || !(window.PF && PF.translateVideo)) return; const b=$('mTranslate'); b.disabled=true; $('langMsg').textContent="Writing English and 中文 versions…";
+  try{ await PF.translateVideo(v); renderScenes(); langNote(); still(); toast("English and 中文 versions added."); }catch(e){ $('langMsg').textContent=e.message||"Couldn't translate. Try again."; } finally{ b.disabled=false; } });
 $('mVoiceMode').addEventListener("change", ()=>{ const v=cur(); v.voiceMode=$('mVoiceMode').value; $('fileVoice').hidden=v.voiceMode!=="file"; save(); renderScenes(); });
 async function fileInfo(){
   const v=cur(); if(!v) return; const f=await clipGet(v.id+"|file").catch(()=>null);
@@ -253,6 +274,8 @@ function renderScenes(){
     <div class="bd">
       <label class="f full">Voiceover line <textarea rows="2" data-k="vo">${esc(s.vo)}</textarea></label>
       <label class="f full">On-screen text <input type="text" data-k="ost" value="${esc(s.ost)}"></label>
+      <label class="f">English version <input type="text" data-k="sub_en" value="${esc(s.sub_en||"")}" placeholder="For English voice or subtitles"></label>
+      <label class="f">中文版本 <input type="text" data-k="sub_zh" value="${esc(s.sub_zh||"")}" placeholder="用于中文配音或字幕"></label>
     </div>
     ${(s.img||s.vid||s.dir||s.sfx)?`<details class="prm"><summary>Prompts for image &amp; video tools</summary>${[["Image prompt",s.img],["Video prompt",s.vid],["Voice direction",s.dir],["Sound",s.sfx]].filter(x=>x[1]).map(([l,t])=>`<div class="pblk"><div class="row between"><b>${l}</b><button class="btn small" data-copytext="${esc(t)}">Copy</button></div><div class="ptxt">${esc(t)}</div></div>`).join("")}</details>`:""}
     ${v.voiceMode==="scenes"?`<div class="voice"><button class="btn small rec" data-rec="${s.sid}">Record voice</button>
@@ -349,14 +372,14 @@ function wavBlob(buf){
   return new Blob([ab],{type:"audio/wav"});
 }
 const aiKey = (v,s) => v.id+"|"+s.sid+"|ai";
-const aiSig = s => { const c=vcfg(); return [s.vo, c.en, c.zh, c.deep].join("|"); };
+const aiSig = (v,s) => { const c=vcfg(); return [spokenText(v,s), c.en, c.zh, c.deep].join("|"); };
 // Make AI voice clips for the given scenes. English parts of every scene first, then Mandarin, so each voice loads once.
 async function ensureAI(v, scenes, onMsg){
   const e=engine(); if(!e) throw new Error("The voice engine didn't load. Connect to the internet once and reopen the app.");
   const c=vcfg(), todo=[];
-  for(const s of scenes){ const old=await clipGet(aiKey(v,s)).catch(()=>null); if(!old || old.sig!==aiSig(s)) todo.push(s); }
+  for(const s of scenes){ const old=await clipGet(aiKey(v,s)).catch(()=>null); if(!old || old.sig!==aiSig(v,s)) todo.push(s); }
   if(!todo.length) return;
-  const parts=[]; todo.forEach(s=>segments(s.vo).forEach((g,k)=>parts.push({s,k,g,buf:null})));
+  const parts=[]; todo.forEach(s=>segments(spokenText(v,s)).forEach((g,k)=>parts.push({s,k,g,buf:null})));
   const total=parts.length; let done=0;
   for(const zh of [false,true]){
     for(const p of parts.filter(p=>p.g.zh===zh)){
@@ -369,7 +392,7 @@ async function ensureAI(v, scenes, onMsg){
     const bufs=parts.filter(p=>p.s===s).sort((a,b)=>a.k-b.k).map(p=>p.buf);
     if(!bufs.length){ await clipDel(aiKey(v,s)).catch(()=>{}); continue; }
     const out=concat(bufs,0.08);
-    await clipSet(aiKey(v,s),{blob:wavBlob(out), dur:out.duration, sig:aiSig(s), auto:true});
+    await clipSet(aiKey(v,s),{blob:wavBlob(out), dur:out.duration, sig:aiSig(v,s), auto:true});
   }
 }
 
@@ -382,19 +405,19 @@ async function timeline(v, onMsg){
   } else if(v.voiceMode==="scenes" || v.voiceMode==="ai"){
     const own={};
     if(v.voiceMode==="scenes") for(const s of sc){ const c=await clipGet(v.id+"|"+s.sid).catch(()=>null); if(c) own[s.sid]=c; }
-    const need=sc.filter(s=>!own[s.sid] && segments(s.vo).length);
+    const need=sc.filter(s=>!own[s.sid] && segments(spokenText(v,s)).length);
     if(need.length){ try{ await ensureAI(v, need, onMsg); }catch(e){ aiErr=e; } }
     let acc=0;
     for(let i=0;i<sc.length;i++){
       const key = own[sc[i].sid] ? v.id+"|"+sc[i].sid : aiKey(v,sc[i]);
       const c = own[sc[i].sid] || await clipGet(key).catch(()=>null);
-      if(c && (!c.auto || c.sig===aiSig(sc[i]))){ const buf=await decode(c.blob, key); durs[i]=Math.max(durs[i], buf.duration+0.5); audio.push({buf,start:acc+0.2}); }
+      if(c && (!c.auto || c.sig===aiSig(v,sc[i]))){ const buf=await decode(c.blob, key); durs[i]=Math.max(durs[i], buf.duration+0.5); audio.push({buf,start:acc+0.2}); }
       acc+=durs[i];
     }
   }
   return {durs, total:durs.reduce((a,b)=>a+b,0), audio, aiErr};
 }
-function still(){ const v=cur(); const c=$('pv'); if(!v||!c||!v.output.scenes.length) return; const d=v.output.scenes.map(s=>Math.max(2,+s.dur||5)); drawFrame(c.getContext("2d"),c.width,c.height,v.output.scenes,d,0.4); }
+function still(){ const v=cur(); const c=$('pv'); if(!v||!c||!v.output.scenes.length) return; const d=v.output.scenes.map(s=>Math.max(2,+s.dur||5)); drawFrame(c.getContext("2d"),c.width,c.height,v.output.scenes,d,0.4,false,v); }
 
 let run = null;
 function videoMime(){
@@ -413,7 +436,7 @@ async function renderVideo(v, {record, canvas, onMsg}){
     mime=videoMime();
     if(!mime || !HTMLCanvasElement.prototype.captureStream) throw new Error("This browser can't make video files. Use Edge or Chrome on Windows, or Safari on iPad.");
     const rc=document.createElement("canvas"); rc.width=1080; rc.height=1920; rctx=rc.getContext("2d");
-    drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,0,true);
+    drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,0,true,v);
     stream=rc.captureStream(30);
     dest=a.createMediaStreamDestination(); dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
     try{ rec=new MediaRecorder(stream,{mimeType:mime.m, videoBitsPerSecond:8000000, audioBitsPerSecond:160000}); }catch(e){ rec=new MediaRecorder(stream); }
@@ -427,8 +450,8 @@ async function renderVideo(v, {record, canvas, onMsg}){
     (function step(){
       const t=Math.max(0,a.currentTime-t0);
       if((run && run.stop) || t>=tl.total){ resolve(); return; }
-      if(rctx) drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,t,true);
-      if(pctx) drawFrame(pctx,canvas.width,canvas.height,v.output.scenes,tl.durs,t,false);
+      if(rctx) drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,t,true,v);
+      if(pctx) drawFrame(pctx,canvas.width,canvas.height,v.output.scenes,tl.durs,t,false,v);
       if(record && onMsg) onMsg(`Recording… ${Math.round(t/tl.total*100)}%. Keep the app open.`);
       requestAnimationFrame(step);
     })();
@@ -436,7 +459,7 @@ async function renderVideo(v, {record, canvas, onMsg}){
   const cancelled = run && run.stop;
   srcs.forEach(s=>{ try{ s.stop(); }catch(_){ } });
   if(rec){
-    drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,tl.total-0.01,true);
+    drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,tl.total-0.01,true,v);
     await new Promise(r=>setTimeout(r,250));
     const done=new Promise(r=>rec.onstop=r); rec.stop(); await done; stream.getVideoTracks().forEach(t=>t.stop());
   }

@@ -119,7 +119,9 @@ Return ONLY JSON: {"ideas":[{"date":"YYYY-MM-DD","pillar":"money|work|hacks|skit
 const MIX = {
   "en-led":"Mostly Singapore English with light Singlish (lah, leh, sia, can or not). Switch to Mandarin (华语, simplified Chinese characters) for punchlines and emotional reactions, about 20% of words.",
   "half":"About half Singapore English and half Mandarin (华语, simplified Chinese characters), switching naturally mid-sentence the way young Singaporeans talk.",
-  "zh-led":"Mostly Mandarin (华语, simplified Chinese characters), keeping Singapore terms in English (CPF, BTO, MC, HDB, Grab, OT) and light Singlish particles."
+  "zh-led":"Mostly Mandarin (华语, simplified Chinese characters), keeping Singapore terms in English (CPF, BTO, MC, HDB, Grab, OT) and light Singlish particles.",
+  "en":"All in natural Singapore English with light Singlish (lah, leh, sia). No Chinese characters at all.",
+  "zh":"All in natural Mandarin (华语, simplified Chinese characters), the way young Singaporeans speak. Write Singapore terms in Chinese where natural (公积金 for CPF, 组屋 for HDB, 预购组屋 for BTO, 病假 for MC)."
 };
 function openWrite(){ P().showTab("write"); }
 function loadWrite(){
@@ -166,13 +168,15 @@ For every scene give:
 - img: a complete standalone image prompt for Google Gemini that restates the host's full look, action, expression, Singapore setting, framing and art style, ending with: vertical 9:16 composition.
 - vid: an image-to-video prompt starting "Image-to-video, N s, 9:16." with character motion, background motion, camera move, and "Keep character design unchanged."
 - sfx: sound effect and music cue
+- en: the voiceover line rewritten fully in natural Singapore English (for English voice or subtitles)
+- zh: the voiceover line rewritten fully in natural Mandarin, simplified Chinese characters (for 中文 voice or subtitles)
 
 Also give: title, hook (first spoken line), yt_title (under 70 characters, may use one emoji), caption (TikTok caption under 150 characters with 1-2 hashtags), desc (2-sentence YouTube description), tags (8-10 hashtags mixing English and 中文, Singapore-specific), thumb (thumbnail prompt with big readable text), post (suggested posting time in SGT with a one-line reason).
 
-Return ONLY valid JSON: {"title":"","hook":"","scenes":[{"shot":"","dur":0,"vo":"","dir":"","ost":"","img":"","vid":"","sfx":""}],"yt_title":"","caption":"","desc":"","tags":[""],"thumb":"","post":""}`;
+Return ONLY valid JSON: {"title":"","hook":"","scenes":[{"shot":"","dur":0,"vo":"","dir":"","ost":"","img":"","vid":"","sfx":"","en":"","zh":""}],"yt_title":"","caption":"","desc":"","tags":[""],"thumb":"","post":""}`;
 }
 function applyOutput(v,o){
-  v.output={title:o.title||v.title, hook:o.hook||"", scenes:(o.scenes||[]).map(s=>({sid:P().uid(), shot:s.shot||"", dur:Math.max(2,Math.min(20,+s.dur||6)), vo:s.vo||"", dir:s.dir||"", ost:s.ost||"", img:s.img||"", vid:s.vid||"", sfx:s.sfx||""})),
+  v.output={title:o.title||v.title, hook:o.hook||"", scenes:(o.scenes||[]).map(s=>({sid:P().uid(), shot:s.shot||"", dur:Math.max(2,Math.min(20,+s.dur||6)), vo:s.vo||"", dir:s.dir||"", ost:s.ost||"", img:s.img||"", vid:s.vid||"", sfx:s.sfx||"", sub_en:s.en||"", sub_zh:s.zh||""})),
     yt_title:o.yt_title||v.title, caption:o.caption||"", desc:o.desc||"", tags:o.tags||[], thumb:o.thumb||"", post:o.post||""};
   if(!v.title && o.title) v.title=o.title;
   const S=P().STATUSES; if(S.indexOf(v.status)<S.indexOf("Prompts ready")) v.status="Prompts ready";
@@ -195,6 +199,19 @@ $('genLocal').addEventListener("click", ()=>{
     yt_title:v.title||"Adulting in Singapore", caption:(v.title||"")+" #adultingsg #singapore", desc:"Adulting in Singapore, one small lesson at a time. Follow for daily tips.", tags:["#adultingsg","#singapore","#sgtiktok","#sglife","#打工人"], post:"Weekday 7:30pm to 9pm SGT, after the commute home."});
   P().toast("Template made from your storyboard. The voice reads each line as you typed it.");
 });
+
+/* ---------------- translate lines ---------------- */
+async function translateVideo(v){
+  const sc=v.output.scenes.filter(s=>s.vo);
+  if(!sc.length) throw new Error("Add voiceover lines first.");
+  const prompt=`Rewrite each voiceover line from a Singapore "adulting" YouTube Shorts video in two versions: "en" fully in natural Singapore English (light Singlish is fine, no Chinese characters) and "zh" fully in natural Mandarin with simplified Chinese characters, the way young Singaporeans speak (use 公积金 for CPF, 组屋 for HDB, 预购组屋 for BTO, 病假 for MC). Keep the meaning, tone and jokes, and keep each version about the same length as the original so it fits the same time. If a line starts with a speaker name and colon (like "Mama:"), keep that prefix in both versions.
+Lines: ${JSON.stringify(sc.map(s=>s.vo))}
+Return ONLY JSON: {"lines":[{"en":"","zh":""}]} with exactly ${sc.length} items in the same order.`;
+  const r=await askAI(prompt); const L=(r&&r.lines)||[];
+  if(L.length!==sc.length) throw new Error("The answer didn't match the number of lines. Try again.");
+  sc.forEach((s,i)=>{ s.sub_en=L[i].en||s.sub_en||""; s.sub_zh=L[i].zh||s.sub_zh||""; });
+  P().save();
+}
 
 /* ---------------- Supabase sync ---------------- */
 const SBV = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
@@ -276,6 +293,7 @@ window.addEventListener("online", ()=>{ if(user) pull(); });
 /* ---------------- hooks from app.js ---------------- */
 Object.assign(window.PF, {
   afterList: renderPlan,
+  translateVideo,
   afterSave: schedulePush,
   openWrite,
   onTab: t => { if(t==="write") loadWrite(); if(t==="character") renderCharacter(); if(t==="settings"){ renderAI(); renderSync(); } if(t==="videos") renderPlan(); },
