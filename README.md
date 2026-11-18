@@ -14,9 +14,9 @@ The key is saved on that device only. Add it once on each device you use.
 2. Open **SQL Editor → New query**, paste everything from `setup.sql`, then press **Run**.
 3. Open **Project Settings → API**. Copy the **Project URL** and the **Publishable key** (it starts with `sb_publishable_`).
 4. In the app: **Settings → Sync with Supabase**, paste both, then press **Save**.
-5. Enter your email and a password, then press **Create account**. Open the confirmation email from Supabase and click the link. The page it opens may show an error; that's fine, because your email is confirmed anyway.
-6. Back in the app, press **Sign in**. Do the same on your other devices: paste the URL and key, then **Sign in** (no new account).
-7. Recommended: in Supabase, go to **Authentication → Sign In / Providers** and turn off **Allow new users to sign up**, so only your account exists.
+5. Enter your email and press **Email me a sign-in link**. Open the email and tap the link, which brings you back into the app signed in. No password needed. If the link opens in a different browser (common on iPad), type the 6-digit code from the email instead and press **Sign in with code**.
+6. On your other devices: paste the same URL and key, then ask for a sign-in link with the same email.
+7. Recommended: in Supabase, go to **Authentication → Sign In / Providers** and turn off **Allow new users to sign up** once you have signed in the first time, so only your account exists.
 
 What syncs: plans, storyboards, scenes, captions and your host settings.
 What stays on each device: made videos, voice recordings, the AI voices, and the Gemini key.
@@ -37,3 +37,8 @@ For All English, 全中文 or bilingual subtitles, every line needs an English a
 
 ## Daily use
 **Plan → Plan 7 ideas with AI → Add to plan**, then **Write → Write scenes with AI** for each one, then **Plan → Make all videos**. Upload the files to TikTok and YouTube Shorts, and use **Copy all** in the post pack for the captions.
+
+### Before the first sign-in link (one time, in Supabase)
+- **Authentication → URL Configuration:** set **Site URL** to `https://dumtaz.github.io/Purple-Fox/` and add it under **Redirect URLs**. Otherwise the link goes to localhost.
+- **Authentication → Emails → Magic Link template:** add `<p>Your code: {{ .Token }}</p>` so the email also shows a 6-digit code.
+- Supabase's built-in email sender allows only a few emails per hour; wait a minute between requests.
