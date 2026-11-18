@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Purple Fox</title>
+<meta name="theme-color" content="#6a4cc2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Purple Fox">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<script type="importmap">{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/esm/ort.min.js"}}</script>
+</head>
+<body>
+<header class="top">
+  <div class="topin">
+    <img src="icons/icon-192.png" alt="" class="logo">
+    <div class="brand"><h1>Purple Fox</h1><small>Adulting Life in SG · plan, write, make</small></div>
+    <nav class="tabs" aria-label="Sections">
+      <button data-tab="videos" aria-current="page">Plan</button>
+      <button data-tab="write">Write</button>
+      <button data-tab="make">Make</button>
+      <button data-tab="character">Character</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+    <span class="hdr"><span class="sync off" id="syncChip">Not syncing</span><span class="net" id="net"></span></span>
+  </div>
+</header>
+
+<main>
+<!-- PLAN -->
+<section class="view on" id="v-videos">
+  <div class="stack" style="gap:18px">
+    <div class="kpis" id="kpis"></div>
+    <div class="card stack">
+      <div class="row between"><h2>Next 7 days</h2><p class="hint">Mon money · Tue work · Wed hacks · Thu skit · Fri money · Sat hacks · Sun skit</p></div>
+      <div class="week" id="week"></div>
+    </div>
+    <div class="card stack">
+      <div class="row between">
+        <h2>Your videos</h2>
+        <div class="row">
+          <button class="btn" id="newVid">New video</button>
+          <button class="btn" id="planAI">Plan 7 ideas with AI</button>
+          <button class="btn primary" id="makeAll">Make all videos</button>
+        </div>
+      </div>
+      <p class="hint" id="planMsg"></p>
+      <div class="ideas" id="ideaOut"></div>
+      <p class="hint" id="allMsg">Make all videos turns every video that has scenes and isn't Posted into a finished file with AI voice, ready to upload.</p>
+      <div id="allOut" class="list"></div>
+      <div id="list" class="list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- WRITE -->
+<section class="view" id="v-write">
+  <div id="writeEmpty" class="card stack"><p class="hint">Pick a video on the Plan tab (press Write), or start a new one.</p><button class="btn primary" onclick="document.getElementById('newVid').click()">New video</button></div>
+  <div id="writeBody" hidden>
+    <div class="grid2">
+      <div class="card stack">
+        <h2>Storyboard</h2>
+        <label class="f">Video title <input type="text" id="wTitle" placeholder="e.g. First payslip: where did my money go?"></label>
+        <div class="row">
+          <label class="f">Post date <input type="date" id="wDate"></label>
+          <label class="f">Pillar
+            <select id="wPillar"><option value="money">Money (CPF, BTO, budget)</option><option value="work">Work life / career</option><option value="hacks">Life hacks / food / errands</option><option value="skit">Relatable skit</option></select></label>
+          <label class="f">Length (s)
+            <select id="wLen"><option>15</option><option selected>30</option><option>45</option><option>60</option></select></label>
+        </div>
+        <label class="f">Language mix
+          <select id="wMix">
+            <option value="en-led">English-led, 华语 for punchlines</option>
+            <option value="half">Half English, half 华语</option>
+            <option value="zh-led">华语-led, English for terms (CPF, BTO, MC)</option>
+          </select></label>
+        <label class="f">Storyboard: one scene per line
+          <textarea id="sb" rows="10" placeholder="Scene 1: Purple Fox opens his first payslip in the office pantry...&#10;Scene 2: ...&#10;Scene 3: ...&#10;Scene 4: ..."></textarea></label>
+        <div class="row">
+          <button class="btn primary" id="genAI">Write scenes with AI</button>
+          <button class="btn" id="genLocal">Quick template (offline)</button>
+        </div>
+        <p class="hint" id="genStatus"></p>
+      </div>
+      <div class="card stack">
+        <h2>How it works</h2>
+        <p class="hint"><b>Write scenes with AI</b> uses your free Google Gemini key (Settings) to turn the storyboard into timed scenes: voiceover lines in your language mix, on-screen text, image and video prompts, plus the title, caption and hashtags. It then opens the Make tab.</p>
+        <p class="hint"><b>Quick template</b> works offline: each storyboard line becomes a scene, and the AI voice reads the line as you typed it.</p>
+        <p class="hint">Tip: write lines the way you'd say them to a friend. Short sentences sound best with the AI voice.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MAKE -->
+<section class="view" id="v-make">
+  <div id="makeEmpty" class="card"><p class="hint">Pick a video on the Plan tab first.</p></div>
+  <div id="makeBody" hidden>
+    <div class="grid2 make">
+      <div class="stack">
+        <div class="card stack">
+          <div class="row between">
+            <input type="text" id="mTitle" class="titlein" aria-label="Video title">
+            <input type="date" id="mDate" aria-label="Post date">
+          </div>
+          <div class="row">
+            <label class="f">Status
+              <select id="mStatus"></select></label>
+            <label class="f">Voice
+              <select id="mVoiceMode">
+                <option value="ai">AI voice (automatic)</option>
+                <option value="scenes">My recordings (AI fills gaps)</option>
+                <option value="file">Voice file (MP3)</option>
+                <option value="none">No voice</option>
+              </select></label>
+          </div>
+          <div id="fileVoice" class="row" hidden>
+            <label class="btn filebtn">Load voice file<input type="file" id="mFile" accept="audio/*" class="sr"></label>
+            <span class="hint" id="mFileMsg"></span>
+          </div>
+        </div>
+        <div id="scenes" class="stack"></div>
+        <button class="btn" id="addScene">Add scene</button>
+      </div>
+      <div class="stack sticky">
+        <div class="card stack">
+          <canvas id="pv" width="540" height="960" aria-label="Video preview"></canvas>
+          <div class="row">
+            <button class="btn" id="play">Play preview</button>
+            <button class="btn primary" id="make">Make video</button>
+          </div>
+          <p class="hint" id="makeMsg">Your video records in real time. Keep the app open until it finishes.</p>
+          <div class="row" id="outRow" hidden>
+            <button class="btn primary" id="share">Save to Photos / Share</button>
+            <a class="btn" id="dl" download>Download file</a>
+          </div>
+        </div>
+        <div class="card stack">
+          <div class="row between"><h3>Post pack</h3><button class="btn small" id="copyPack">Copy all</button></div>
+          <div class="pack" id="pack"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHARACTER -->
+<section class="view" id="v-character">
+  <div class="grid2">
+    <div class="card stack">
+      <h2>Your host</h2>
+      <p class="hint">The AI uses this description in every script and image prompt, so the host stays the same.</p>
+      <label class="f">Name <input type="text" id="cName"></label>
+      <label class="f">Who they are <textarea id="cBio" rows="3"></textarea></label>
+      <label class="f">Look <textarea id="cLook" rows="3"></textarea></label>
+      <label class="f">Personality and voice <textarea id="cPers" rows="2"></textarea></label>
+      <label class="f">Supporting cast <textarea id="cCast" rows="2"></textarea></label>
+      <label class="f">Art style <textarea id="cStyle" rows="2"></textarea></label>
+      <label class="f">Avoid <input type="text" id="cNeg"></label>
+    </div>
+    <div class="stack">
+      <div class="card stack">
+        <h2>Picture in the videos</h2>
+        <div class="row">
+          <img id="charImg" alt="Host character" class="charimg">
+          <div class="stack" style="flex:1;min-width:180px">
+            <label class="btn filebtn">Change main picture<input type="file" id="charFile" accept="image/*" class="sr"></label>
+            <button class="btn" id="charReset">Use Purple Fox</button>
+            <p class="hint">The 5 reaction bubbles (happy, shocked, thinking, stressed, let's go) stay Purple Fox.</p>
+          </div>
+        </div>
+      </div>
+      <div class="card stack">
+        <div class="row between"><h3>Character sheet prompt</h3><button class="btn small" id="sheetCopy" onclick="navigator.clipboard.writeText(document.getElementById('sheetP').textContent).then(()=>{this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1200)})">Copy</button></div>
+        <p class="hint">Paste into Google Gemini to make new poses of your host.</p>
+        <div class="ptxt" id="sheetP"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section class="view" id="v-settings">
+  <div class="grid2">
+    <div class="card stack">
+      <h2>AI writing (free Google Gemini key)</h2>
+      <p class="hint">Used by <b>Plan 7 ideas</b> and <b>Write scenes</b>. Get a free key: go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, sign in with Google, press <b>Create API key</b>, copy it and paste it here. The key stays on this device.</p>
+      <label class="f">Gemini API key <input type="password" id="gKey" autocomplete="off" placeholder="Paste your key"></label>
+      <label class="f">Model
+        <select id="gModel"><option value="auto">Automatic (best free model)</option><option value="gemini-flash-latest">Gemini Flash (latest)</option><option value="gemini-2.5-flash">Gemini 2.5 Flash</option><option value="gemini-flash-lite-latest">Gemini Flash-Lite (more free requests)</option><option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option></select></label>
+      <div class="row"><button class="btn" id="gTest">Test key</button></div>
+      <p class="hint" id="gMsg"></p>
+    </div>
+    <div class="card stack">
+      <h2>Sync with Supabase</h2>
+      <p class="hint">Keeps your plans, scripts and host the same on every device. Videos and voice recordings stay on each device. One-time setup steps are in SETUP.md.</p>
+      <label class="f">Project URL <input type="text" id="sbUrl" placeholder="https://abcdefgh.supabase.co" autocomplete="off"></label>
+      <label class="f">Publishable key <input type="password" id="sbKey" placeholder="sb_publishable_..." autocomplete="off"></label>
+      <div class="row"><button class="btn" id="sbSave">Save</button></div>
+      <div id="sbOut" class="stack">
+        <label class="f">Email <input type="email" id="sbEmail" autocomplete="username"></label>
+        <label class="f">Password <input type="password" id="sbPass" autocomplete="current-password"></label>
+        <div class="row"><button class="btn primary" id="sbSignIn">Sign in</button><button class="btn" id="sbSignUp">Create account</button></div>
+      </div>
+      <div id="sbIn" class="stack" hidden>
+        <p class="hint" id="sbWho"></p>
+        <div class="row"><button class="btn primary" id="sbNow">Sync now</button><button class="btn" id="sbSignOut">Sign out</button></div>
+      </div>
+      <p class="hint" id="sbMsg"></p>
+    </div>
+    <div class="card stack">
+      <h2>AI voice</h2>
+      <p class="hint">Free voices that run on this device. The 华语 parts of each line use the Mandarin voice; everything else uses the English voice. Download them once while online, then they work offline.</p>
+      <div class="row">
+        <label class="f">English voice <select id="vEn"></select></label>
+        <label class="f">Mandarin voice <select id="vZh"></select></label>
+      </div>
+      <label class="row" style="gap:8px;font-size:14px"><input type="checkbox" id="vDeep"> Make the Mandarin voice deeper, closer to a male voice</label>
+      <div class="row"><button class="btn primary" id="vDownload">Download voices</button><button class="btn" id="vTest">Test voice</button></div>
+      <p class="hint" id="vMsg"></p>
+    </div>
+    <div class="card stack">
+      <h2>Import from Purple Fox Studio</h2>
+      <p class="hint">Bring in plans made in Purple Fox Studio (in Claude) with <b>Export for app</b>.</p>
+      <label class="btn filebtn">Load plan file<input type="file" id="impFile" accept=".json,application/json" class="sr"></label>
+      <details>
+        <summary>Paste instead</summary>
+        <textarea id="impText" rows="4" placeholder="Paste the exported plan here"></textarea>
+        <button class="btn" id="impPaste">Import pasted plan</button>
+      </details>
+      <p class="hint" id="impMsg"></p>
+    </div>
+    <div class="card stack">
+      <h2>Install and storage</h2>
+      <p class="hint"><b>Windows (Edge or Chrome):</b> click the install icon in the address bar, or Menu → Apps → Install.<br>
+      <b>iPad (Safari):</b> Share → Add to Home Screen.</p>
+      <p class="hint" id="storeMsg"></p>
+      <div class="row"><button class="btn" id="exportAll">Save a backup file</button>
+      <label class="btn filebtn">Restore a backup<input type="file" id="restoreFile" accept=".json" class="sr"></label></div>
+    </div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="tts.js"></script>
+<script src="seed.js"></script>
+<script src="app.js"></script>
+<script src="studio.js"></script>
+</body>
+</html>
