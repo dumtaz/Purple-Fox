@@ -212,9 +212,10 @@
       <label class="f">Publishable key <input type="password" id="sbKey" placeholder="sb_publishable_..." autocomplete="off"></label>
       <div class="row"><button class="btn" id="sbSave">Save</button></div>
       <div id="sbOut" class="stack">
-        <label class="f">Email <input type="email" id="sbEmail" autocomplete="username"></label>
-        <label class="f">Password <input type="password" id="sbPass" autocomplete="current-password"></label>
-        <div class="row"><button class="btn primary" id="sbSignIn">Sign in</button><button class="btn" id="sbSignUp">Create account</button></div>
+        <label class="f">Email <input type="email" id="sbEmail" autocomplete="email"></label>
+        <div class="row"><button class="btn primary" id="sbLink">Email me a sign-in link</button></div>
+        <p class="hint">No password. Open the email on this device and tap the link. On an iPad app, or if the link opens a different browser, type the 6-digit code from the email instead:</p>
+        <div class="row"><input type="text" id="sbCode" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" maxlength="8" style="max-width:180px"><button class="btn" id="sbVerify">Sign in with code</button></div>
       </div>
       <div id="sbIn" class="stack" hidden>
         <p class="hint" id="sbWho"></p>

@@ -1,5 +1,5 @@
 /* Offline cache for Purple Fox. Bump VERSION when you change any file. */
-const VERSION = "pf-v5";
+const VERSION = "pf-v6";
 const FILES = [
   "./", "index.html", "app.css", "app.js", "seed.js", "tts.js", "studio.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",

@@ -224,7 +224,9 @@ async function client(){
   if(sb && sbSig===c.url+c.key) return sb;
   if(window.__PF_SB_MOCK) { sb=window.__PF_SB_MOCK; sbSig=c.url+c.key; return sb; }
   const m=await import(SBV);
-  sb=m.createClient(c.url,c.key,{auth:{persistSession:true, autoRefreshToken:true, storageKey:"pf-auth"}}); sbSig=c.url+c.key; return sb;
+  sb=m.createClient(c.url,c.key,{auth:{persistSession:true, autoRefreshToken:true, storageKey:"pf-auth"}}); sbSig=c.url+c.key;
+  sb.auth.onAuthStateChange((ev)=>{ if(ev==="SIGNED_IN" && !user){ setTimeout(async()=>{ await refreshUser(); if(user){ $('sbMsg').textContent="Signed in. Syncing your plans…"; await pull(); $('sbMsg').textContent="Signed in. Plans sync automatically when you're online."; } },0); } });
+  return sb;
 }
 async function refreshUser(){
   try{ const c=await client(); if(!c){ user=null; return null; } const {data}=await c.auth.getSession(); user=data && data.session ? data.session.user : null; }catch(_){ user=null; }
@@ -270,23 +272,32 @@ function schedulePush(){ if(!user) return; clearTimeout(pushT); pushT=setTimeout
 $('sbSave').addEventListener("click", async ()=>{
   const url=$('sbUrl').value.trim().replace(/\/+$/,""), key=$('sbKey').value.trim();
   if(url && !/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)){ $('sbMsg').textContent="The Project URL should look like https://abcdefgh.supabase.co"; return; }
-  LOCALSET("pf-sync",{url,key}); sb=null; $('sbMsg').textContent = url&&key ? "Saved. Now sign in or create your account." : "Sync details removed from this device.";
+  LOCALSET("pf-sync",{url,key}); sb=null; $('sbMsg').textContent = url&&key ? "Saved. Now enter your email to get a sign-in link." : "Sync details removed from this device.";
   await refreshUser();
 });
-async function auth(kind){
-  const email=$('sbEmail').value.trim(), password=$('sbPass').value;
-  if(!email || password.length<6){ $('sbMsg').textContent="Enter your email and a password of at least 6 characters."; return; }
+function redirectUrl(){ return location.origin + location.pathname; }
+async function sendLink(){
+  const email=$('sbEmail').value.trim();
+  if(!/^\S+@\S+\.\S+$/.test(email)){ $('sbMsg').textContent="Enter your email address first."; return; }
+  const btn=$('sbLink'); btn.disabled=true;
   try{
     const c=await client(); if(!c){ $('sbMsg').textContent="Save your Project URL and key first."; return; }
-    if(kind==="up"){
-      const {data,error}=await c.auth.signUp({email,password}); if(error) throw error;
-      if(!data.session){ $('sbMsg').textContent="Account created. Open the confirmation email from Supabase, click the link, then come back and press Sign in."; return; }
-    } else { const {error}=await c.auth.signInWithPassword({email,password}); if(error) throw error; }
-    $('sbPass').value=""; await refreshUser(); $('sbMsg').textContent="Signed in. Syncing your plans…"; await pull(); $('sbMsg').textContent="Signed in. Plans sync automatically when you're online.";
-  }catch(e){ $('sbMsg').textContent = /Invalid login/i.test(e.message||"") ? "Wrong email or password." : /confirm/i.test(e.message||"") ? "Confirm your email first: open the email from Supabase and click the link." : (e.message||"Sign-in failed."); }
+    const {error}=await c.auth.signInWithOtp({email, options:{emailRedirectTo:redirectUrl(), shouldCreateUser:true}}); if(error) throw error;
+    $('sbMsg').textContent="Check your email (and spam). Tap the link, or type the 6-digit code below.";
+  }catch(e){ $('sbMsg').textContent = /rate limit|too many|seconds/i.test(e.message||"") ? "Please wait a minute before asking for another link." : (e.message||"Could not send the link."); }
+  finally{ btn.disabled=false; }
 }
-$('sbSignIn').addEventListener("click", ()=>auth("in"));
-$('sbSignUp').addEventListener("click", ()=>auth("up"));
+async function verifyCode(){
+  const email=$('sbEmail').value.trim(), token=$('sbCode').value.replace(/\s+/g,"");
+  if(!email || !token){ $('sbMsg').textContent="Enter your email and the code from the email."; return; }
+  try{
+    const c=await client(); if(!c){ $('sbMsg').textContent="Save your Project URL and key first."; return; }
+    const {error}=await c.auth.verifyOtp({email, token, type:"email"}); if(error) throw error;
+    $('sbCode').value=""; await refreshUser(); $('sbMsg').textContent="Signed in. Syncing your plans…"; await pull(); $('sbMsg').textContent="Signed in. Plans sync automatically when you're online.";
+  }catch(e){ $('sbMsg').textContent = /expired|invalid/i.test(e.message||"") ? "That code is wrong or expired. Ask for a new link." : (e.message||"Sign-in failed."); }
+}
+$('sbLink').addEventListener("click", sendLink);
+$('sbVerify').addEventListener("click", verifyCode);
 $('sbSignOut').addEventListener("click", async ()=>{ try{ const c=await client(); await c.auth.signOut(); }catch(_){} user=null; renderSync(); $('sbMsg').textContent="Signed out on this device. Your plans stay here and in Supabase."; });
 $('sbNow').addEventListener("click", ()=>pull());
 window.addEventListener("online", ()=>{ if(user) pull(); });
