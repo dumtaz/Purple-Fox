@@ -36,13 +36,24 @@ for(const id in CF) $(id).addEventListener("input", ()=>{ CH()[CF[id]]=$(id).val
 const MODELS = ["gemini-flash-latest","gemini-2.5-flash","gemini-flash-lite-latest","gemini-2.5-flash-lite"];
 const aiCfg = () => Object.assign({key:"", model:"auto"}, LOCAL("pf-ai")||{});
 function renderAI(){ const c=aiCfg(); $('gKey').value=c.key; $('gModel').value=c.model; aiButtons(); }
-function aiButtons(){ const has=!!aiCfg().key; ["planAI","genAI","mTranslate"].forEach(id=>{ const b=$(id); if(b) b.hidden=!has; }); }
+function aiButtons(){ const has=!!(aiCfg().key || user); ["planAI","genAI","mTranslate"].forEach(id=>{ const b=$(id); if(b) b.hidden=!has; }); }
 $('gKey').addEventListener("change", ()=>{ const c=aiCfg(); c.key=$('gKey').value.trim(); LOCALSET("pf-ai",c); aiButtons(); $('gMsg').textContent=c.key?"Key saved on this device.":"Key removed."; });
 $('gModel').addEventListener("change", ()=>{ const c=aiCfg(); c.model=$('gModel').value; LOCALSET("pf-ai",c); });
 async function askAI(prompt){
   const c=aiCfg();
-  if(!c.key) throw new Error("Add your free Gemini API key in Settings first.");
   if(!navigator.onLine) throw new Error("You're offline. AI writing needs the internet; Quick template works offline.");
+  if(!c.key){
+    // No key typed in: use your private AI function in Supabase (signed-in users only)
+    if(!user) throw new Error("Sign in first, then the AI works automatically.");
+    const cl=await client(); const {data:ss}=await cl.auth.getSession(); const tok=ss && ss.session && ss.session.access_token;
+    if(!tok) throw new Error("Please sign in again.");
+    let r; try{ r=await fetch(sbCfg().url+"/functions/v1/pf-ai",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tok,apikey:sbCfg().key},body:JSON.stringify({prompt})}); }
+    catch(_){ throw new Error("Couldn't reach the AI. Check your internet and try again."); }
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"The AI had a problem. Try again.");
+    const text=j.text||""; const a=text.indexOf("{"), b=text.lastIndexOf("}");
+    try{ return JSON.parse(text.slice(a,b+1)); }catch(_){ throw new Error("The AI answer was cut off. Try again."); }
+  }
   const list = c.model==="auto" ? MODELS : [c.model];
   let last=null;
   for(const m of list){
@@ -231,7 +242,7 @@ async function client(){
 async function refreshUser(){
   try{ const c=await client(); if(!c){ user=null; return null; } const {data}=await c.auth.getSession(); user=data && data.session ? data.session.user : null; }catch(_){ user=null; }
   if(user){ const l=$("login"); if(l) l.hidden=true; }
-  renderSync(); return user;
+  renderSync(); aiButtons(); return user;
 }
 function renderSync(){
   const c=sbCfg(); $('sbUrl').value=c.url; $('sbKey').value=c.key;
