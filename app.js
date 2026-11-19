@@ -212,7 +212,7 @@ $('list').addEventListener("click", async e=>{
   const d=e.target.closest("[data-del]");
   if(d){ if(d.dataset.confirm!=="1"){ d.dataset.confirm="1"; d.textContent="Tap again to delete"; return; }
     const v=state.videos.find(x=>x.id===d.dataset.del);
-    if(v){ for(const s of v.output.scenes) clipDel(v.id+"|"+s.sid).catch(()=>{}); clipDel(v.id+"|file").catch(()=>{}); }
+    if(v){ for(const s of v.output.scenes) clipDel(v.id+"|"+s.sid).catch(()=>{}); clipDel(v.id+"|file").catch(()=>{}); clipDel(v.id+"|music").catch(()=>{}); }
     state.videos=state.videos.filter(x=>x.id!==d.dataset.del); if(state.sel===d.dataset.del) state.sel=null; save(); renderList(); }
 });
 function newVideo(extra){
@@ -262,8 +262,8 @@ function openMake(){
   $('mTitle').value=v.title||""; $('mDate').value=v.date||"";
   $('mStatus').innerHTML=STATUSES.map(s=>`<option${s===v.status?" selected":""}>${s}</option>`).join("");
   $('mVoiceMode').value=v.voiceMode; $('mSpeak').value=v.speak; $('mSubs').value=v.subs; langNote();
-  $('fileVoice').hidden = v.voiceMode!=="file";
-  renderScenes(); renderPack(); fileInfo(); still();
+  $('fileVoice').hidden = v.voiceMode!=="file"; $('liveHint').hidden = v.voiceMode!=="live";
+  renderScenes(); renderPack(); fileInfo(); musicState(); still();
 }
 $('mTitle').addEventListener("input", ()=>{ const v=cur(); v.title=$('mTitle').value; save(); renderList(); renderPack(); });
 $('mDate').addEventListener("change", ()=>{ const v=cur(); v.date=$('mDate').value; save(); renderList(); });
@@ -274,7 +274,7 @@ $('mSpeak').addEventListener("change", ()=>{ const v=cur(); v.speak=$('mSpeak').
 $('mSubs').addEventListener("change", ()=>{ const v=cur(); v.subs=$('mSubs').value; save(); langNote(); still(); });
 $('mTranslate').addEventListener("click", async ()=>{ const v=cur(); if(!v || !(window.PF && PF.translateVideo)) return; const b=$('mTranslate'); b.disabled=true; $('langMsg').textContent="Writing English and 中文 versions…";
   try{ await PF.translateVideo(v); renderScenes(); langNote(); still(); toast("English and 中文 versions added."); }catch(e){ $('langMsg').textContent=e.message||"Couldn't translate. Try again."; } finally{ b.disabled=false; } });
-$('mVoiceMode').addEventListener("change", ()=>{ const v=cur(); v.voiceMode=$('mVoiceMode').value; $('fileVoice').hidden=v.voiceMode!=="file"; save(); renderScenes(); });
+$('mVoiceMode').addEventListener("change", ()=>{ const v=cur(); v.voiceMode=$('mVoiceMode').value; $('fileVoice').hidden=v.voiceMode!=="file"; $('liveHint').hidden=v.voiceMode!=="live"; save(); renderScenes(); });
 async function fileInfo(){
   const v=cur(); if(!v) return; const f=await clipGet(v.id+"|file").catch(()=>null);
   $('mFileMsg').textContent = f ? `${f.name||"Voice file"} · ${f.dur.toFixed(1)} s. Scenes stretch to fit it.` : "No voice file loaded.";
@@ -284,6 +284,19 @@ $('mFile').addEventListener("change", async e=>{
   try{ const buf=await decode(f); await clipSet(v.id+"|file",{blob:f, dur:buf.duration, name:f.name}); fileInfo(); toast("Voice file saved on this device."); }
   catch(err){ toast("Couldn't read that audio file. Try an MP3 or M4A."); }
 });
+
+async function musicState(){
+  const v=cur(); if(!v) return; const c=await clipGet(v.id+"|music").catch(()=>null);
+  $('musMsg').textContent = c ? `${c.name||"Music"} · ${c.dur.toFixed(0)} s, repeats to fill the video` : "No music";
+  $('musDel').hidden=!c; $('musVol').value = v.musicVol==null?18:v.musicVol;
+}
+$('musFile').addEventListener("change", async e=>{
+  const f=e.target.files[0]; e.target.value=""; const v=cur(); if(!f||!v) return;
+  try{ const buf=await decode(f); await clipSet(v.id+"|music",{blob:f, dur:buf.duration, name:f.name}); musicState(); toast("Music saved on this device."); }
+  catch(err){ toast("Couldn't read that audio file. Try an MP3 or M4A."); }
+});
+$('musVol').addEventListener("input",()=>{ const v=cur(); if(!v) return; v.musicVol=+$('musVol').value; save(); });
+$('musDel').addEventListener("click", async ()=>{ const v=cur(); if(!v) return; await clipDel(v.id+"|music").catch(()=>{}); musicState(); });
 
 function renderScenes(){
   const v=cur(); const sc=v.output.scenes;
@@ -446,7 +459,7 @@ function videoMime(){
 }
 const fileName = (v,ext) => `${v.date||today()}-${(v.title||"video").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50)||"video"}.${ext}`;
 // Core: play (record=false) or record one video. Returns {file, voiced, aiErr, mime} when recorded.
-async function renderVideo(v, {record, canvas, onMsg}){
+async function renderVideo(v, {record, canvas, onMsg, live, micStream}){
   const a=ac(); await a.resume();
   const tl=await timeline(v, onMsg);
   if(run && run.stop) return null;
@@ -462,31 +475,49 @@ async function renderVideo(v, {record, canvas, onMsg}){
     try{ rec=new MediaRecorder(stream,{mimeType:mime.m, videoBitsPerSecond:8000000, audioBitsPerSecond:160000}); }catch(e){ rec=new MediaRecorder(stream); }
     rec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
   }
+  let mbuf=null; const musClip=await clipGet(v.id+"|music").catch(()=>null);
+  if(musClip){ try{ mbuf=await decode(musClip.blob, v.id+"|music"); }catch(_){ onMsg && onMsg("Couldn't read the music file, so this video has no music."); } }
   const t0=a.currentTime+0.35;
   const srcs=tl.audio.map(x=>{ const s=a.createBufferSource(); s.buffer=x.buf; s.connect(a.destination); if(dest) s.connect(dest); s.start(t0+x.start); return s; });
+  let mg=null;
+  if(mbuf){ mg=a.createGain(); mg.connect(a.destination); if(dest) mg.connect(dest);
+    const ms=a.createBufferSource(); ms.buffer=mbuf; ms.loop=true; ms.connect(mg);
+    const vol=(v.musicVol==null?18:v.musicVol)/100;
+    mg.gain.setValueAtTime(0,t0); mg.gain.linearRampToValueAtTime(vol,t0+0.8);
+    if(!live){ mg.gain.setValueAtTime(vol,t0+Math.max(1,tl.total-1.5)); mg.gain.linearRampToValueAtTime(0,t0+tl.total); }
+    ms.start(t0); srcs.push(ms); }
+  if(live && micStream && dest){ const mn=a.createMediaStreamSource(micStream); const mgn=a.createGain(); mgn.gain.value=1.3; mn.connect(mgn); mgn.connect(dest); }
   if(rec) rec.start(500);
   onMsg && onMsg(record ? `Recording… keep the app open. About ${Math.ceil(tl.total)} seconds.` : "Playing preview.");
+  const planned=tl.durs.slice();
   await new Promise(resolve=>{
     (function step(){
       const t=Math.max(0,a.currentTime-t0);
-      if((run && run.stop) || t>=tl.total){ resolve(); return; }
+      if(live){
+        if(live.next && !live.done){ live.next=false; tl.durs[live.idx]=Math.max(1.2,t-live.start);
+          if(live.idx>=planned.length-1){ live.done=true; live.endAt=t;
+            if(mg){ const n=a.currentTime; mg.gain.cancelScheduledValues(n); mg.gain.setValueAtTime(mg.gain.value,n); mg.gain.linearRampToValueAtTime(0,n+1); } }
+          else { live.idx++; live.start=t; live.onScene && live.onScene(live.idx); } }
+        if(!live.done) tl.durs[live.idx]=Math.max(planned[live.idx],t-live.start);
+        if((run && run.stop) || (live.done && t>=live.endAt+1.1)){ resolve(); return; }
+      } else if((run && run.stop) || t>=tl.total){ resolve(); return; }
       if(rctx) drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,t,true,v);
       if(pctx) drawFrame(pctx,canvas.width,canvas.height,v.output.scenes,tl.durs,t,false,v);
-      if(record && onMsg) onMsg(`Recording… ${Math.round(t/tl.total*100)}%. Keep the app open.`);
+      if(record && onMsg) onMsg(live ? `Recording your voiceover… ${Math.floor(t)} s. Tap Next scene when you finish each line.` : `Recording… ${Math.round(t/tl.total*100)}%. Keep the app open.`);
       requestAnimationFrame(step);
     })();
   });
   const cancelled = run && run.stop;
   srcs.forEach(s=>{ try{ s.stop(); }catch(_){ } });
   if(rec){
-    drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,tl.total-0.01,true,v);
+    drawFrame(rctx,1080,1920,v.output.scenes,tl.durs,tl.durs.reduce((x,y)=>x+y,0)-0.01,true,v);
     await new Promise(r=>setTimeout(r,250));
     const done=new Promise(r=>rec.onstop=r); rec.stop(); await done; stream.getVideoTracks().forEach(t=>t.stop());
   }
   if(!record || cancelled) return {cancelled, aiErr:tl.aiErr};
   const blob=new Blob(chunks,{type:mime.m.split(";")[0]});
   const file=new File([blob], fileName(v,mime.e), {type:blob.type});
-  const voiced=tl.audio.length>0;
+  const voiced=tl.audio.length>0 || !!live;
   const target = voiced ? "Voice added" : "Video made";
   if(STATUSES.indexOf(v.status) < STATUSES.indexOf(target)){ v.status=target; save(); }
   return {file, voiced, aiErr:tl.aiErr, mime};
@@ -494,14 +525,27 @@ async function renderVideo(v, {record, canvas, onMsg}){
 function voiceNote(r){ return r.aiErr ? ` No AI voice: ${r.aiErr.message && r.aiErr.message.startsWith("The voice") ? r.aiErr.message : "connect to the internet once so the voice can download, then try again."}` : ""; }
 function codecNote(r){ return /avc1/.test(r.mime.m) ? "" : " If TikTok won't accept this file, open it in CapCut or Clipchamp and export it again as MP4."; }
 async function go(record){
+  try{ ac().resume(); }catch(_){}
   const v=cur(); if(!v || run) return;
   if(!v.output.scenes.length){ toast("Add at least one scene."); return; }
   if(mic){ toast("Stop the voice recording first."); return; }
   run={stop:false};
   $('play').textContent = record ? "Cancel" : "Stop"; $('make').disabled=true; $('outRow').hidden=true;
   const msg=t=>$('makeMsg').textContent=t;
+  let micStream=null, live=null;
   try{
-    const r=await renderVideo(v,{record, canvas:$('pv'), onMsg:msg});
+    if(record && v.voiceMode==="live"){
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("This browser can't use the microphone.");
+      try{ micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); }
+      catch(_){ throw new Error("Allow the microphone to record a live voiceover, then press Make video again."); }
+      const sc=v.output.scenes; live={idx:0,start:0,next:false,done:false};
+      const show=i=>{ $('liveCount').textContent=`Scene ${i+1} of ${sc.length}`; $('liveLine').textContent=spokenText(v,sc[i])||sc[i].shot||""; $('liveNext').textContent=i>=sc.length-1?"Finish ■":"Next scene ▶"; };
+      live.onScene=show; show(0); $('livePanel').hidden=false; try{ $('livePanel').scrollIntoView({block:'center',behavior:'smooth'}); }catch(_){}
+      let last=0; $('liveNext').onclick=()=>{ const n=Date.now(); if(n-last<500) return; last=n; live.next=true; };
+      for(let n=3;n>0 && !run.stop;n--){ msg(`Get ready… ${n}`); await new Promise(r=>setTimeout(r,1000)); }
+      if(run.stop){ msg("Cancelled."); return; }
+    }
+    const r=await renderVideo(v,{record, canvas:$('pv'), onMsg:msg, live, micStream});
     if(!r) msg("Cancelled.");
     else if(!record) msg(r.cancelled ? "Preview stopped." : "Preview finished."+voiceNote(r));
     else if(r.cancelled) msg("Cancelled.");
@@ -509,12 +553,13 @@ async function go(record){
       lastFile=r.file;
       const dl=$('dl'); if(dl._u) URL.revokeObjectURL(dl._u); dl._u=URL.createObjectURL(r.file); dl.href=dl._u; dl.download=r.file.name;
       $('share').hidden = !(navigator.canShare && navigator.canShare({files:[r.file]}));
-      $('outRow').hidden=false; $('mStatus').value=v.status; renderList();
+      $('outRow').hidden=false; $('outHint').hidden=false; $('mStatus').value=v.status; renderList();
       msg(`Ready: ${r.file.name} · ${(r.file.size/1048576).toFixed(1)} MB · 1080×1920${r.voiced?" · with voice":" · no voice"}.${voiceNote(r)}${codecNote(r)}`);
     }
   }catch(e){ msg(e.message||"Something went wrong. Try again."); }
-  finally{ run=null; $('play').textContent="Play preview"; $('make').disabled=false; }
+  finally{ run=null; if(micStream) micStream.getTracks().forEach(t=>t.stop()); $('livePanel').hidden=true; $('play').textContent="Play preview"; $('make').disabled=false; }
 }
+document.addEventListener("keydown",e=>{ if(!run || $('livePanel').hidden) return; if(e.code==="Space"||e.key==="Enter"){ e.preventDefault(); $('liveNext').click(); } });
 let lastFile=null;
 $('play').addEventListener("click", ()=>{ if(run) run.stop=true; else go(false); });
 $('make').addEventListener("click", ()=>go(true));
@@ -537,7 +582,7 @@ $('allOut').addEventListener("click", async e=>{
 });
 $('makeAll').addEventListener("click", async ()=>{
   if(run){ run.stop=true; return; }
-  const list=[...state.videos].filter(v=>v.status!=="Posted" && v.output.scenes.length).sort((a,b)=>(a.date||"9").localeCompare(b.date||"9"));
+  const list=[...state.videos].filter(v=>v.status!=="Posted" && v.output.scenes.length && v.voiceMode!=="live").sort((a,b)=>(a.date||"9").localeCompare(b.date||"9"));
   if(!list.length){ toast("No videos to make. Import a plan first."); return; }
   if(mic){ toast("Stop the voice recording first."); return; }
   made.forEach(m=>URL.revokeObjectURL(m.url)); made.length=0; renderMade();

@@ -36,7 +36,7 @@ for(const id in CF) $(id).addEventListener("input", ()=>{ CH()[CF[id]]=$(id).val
 const MODELS = ["gemini-flash-latest","gemini-2.5-flash","gemini-flash-lite-latest","gemini-2.5-flash-lite"];
 const aiCfg = () => Object.assign({key:"", model:"auto"}, LOCAL("pf-ai")||{});
 function renderAI(){ const c=aiCfg(); $('gKey').value=c.key; $('gModel').value=c.model; aiButtons(); }
-function aiButtons(){ const has=!!aiCfg().key; ["planAI","genAI"].forEach(id=>{ const b=$(id); if(b) b.title = has ? "" : "Add your free Gemini key in Settings first"; }); }
+function aiButtons(){ const has=!!aiCfg().key; ["planAI","genAI","mTranslate"].forEach(id=>{ const b=$(id); if(b) b.hidden=!has; }); }
 $('gKey').addEventListener("change", ()=>{ const c=aiCfg(); c.key=$('gKey').value.trim(); LOCALSET("pf-ai",c); aiButtons(); $('gMsg').textContent=c.key?"Key saved on this device.":"Key removed."; });
 $('gModel').addEventListener("change", ()=>{ const c=aiCfg(); c.model=$('gModel').value; LOCALSET("pf-ai",c); });
 async function askAI(prompt){
@@ -230,6 +230,7 @@ async function client(){
 }
 async function refreshUser(){
   try{ const c=await client(); if(!c){ user=null; return null; } const {data}=await c.auth.getSession(); user=data && data.session ? data.session.user : null; }catch(_){ user=null; }
+  if(user){ const l=$("login"); if(l) l.hidden=true; }
   renderSync(); return user;
 }
 function renderSync(){
@@ -298,9 +299,40 @@ async function verifyCode(){
 }
 $('sbLink').addEventListener("click", sendLink);
 $('sbVerify').addEventListener("click", verifyCode);
-$('sbSignOut').addEventListener("click", async ()=>{ try{ const c=await client(); await c.auth.signOut(); }catch(_){} user=null; renderSync(); $('sbMsg').textContent="Signed out on this device. Your plans stay here and in Supabase."; });
+$('sbSignOut').addEventListener("click", async ()=>{ try{ const c=await client(); await c.auth.signOut(); }catch(_){} user=null; renderSync(); $("login").hidden=false; $('sbMsg').textContent="Signed out on this device. Your plans stay here and in Supabase."; });
 $('sbNow').addEventListener("click", ()=>pull());
 window.addEventListener("online", ()=>{ if(user) pull(); });
+
+/* ---------------- sign-in screen ---------------- */
+const lgMsg = t => { $('lgMsg').textContent=t; };
+async function loginDone(){ await refreshUser(); if(user){ $('login').hidden=true; lgMsg(""); pull(); } }
+$('lgIn').addEventListener("click", async ()=>{
+  const email=$('lgEmail').value.trim(), password=$('lgPass').value;
+  if(!email||!password){ lgMsg("Enter your email and password."); return; }
+  const b=$('lgIn'); b.disabled=true; lgMsg("Signing in…");
+  try{ const c=await client(); const {error}=await c.auth.signInWithPassword({email,password}); if(error) throw error; $('lgPass').value=""; await loginDone(); }
+  catch(e){ lgMsg(/invalid login/i.test(e.message||"") ? "Wrong email or password. If you have no password yet, use the sign-in link below." : (e.message||"Couldn't sign in. Check your internet.")); }
+  finally{ b.disabled=false; }
+});
+$('lgPass').addEventListener("keydown", e=>{ if(e.key==="Enter") $('lgIn').click(); });
+$('lgLink').addEventListener("click", async ()=>{
+  const email=$('lgEmail').value.trim(); if(!/^\S+@\S+\.\S+$/.test(email)){ lgMsg("Enter your email address first."); return; }
+  const b=$('lgLink'); b.disabled=true;
+  try{ const c=await client(); const {error}=await c.auth.signInWithOtp({email, options:{emailRedirectTo:redirectUrl(), shouldCreateUser:false}}); if(error) throw error; lgMsg("Check your email (and spam). Tap the link, or type the 6-digit code here."); }
+  catch(e){ lgMsg(/rate limit|too many|seconds/i.test(e.message||"") ? "Please wait a minute before asking for another link." : (e.message||"Could not send the link.")); }
+  finally{ b.disabled=false; }
+});
+$('lgVerify').addEventListener("click", async ()=>{
+  const email=$('lgEmail').value.trim(), token=$('lgCode').value.replace(/\s+/g,"");
+  if(!email||!token){ lgMsg("Enter your email and the code from the email."); return; }
+  try{ const c=await client(); const {error}=await c.auth.verifyOtp({email,token,type:"email"}); if(error) throw error; $('lgCode').value=""; await loginDone(); }
+  catch(e){ lgMsg(/expired|invalid/i.test(e.message||"") ? "That code is wrong or expired. Ask for a new link." : (e.message||"Sign-in failed.")); }
+});
+$('sbSetPass').addEventListener("click", async ()=>{
+  const p=$('sbNewPass').value; if(p.length<8){ $('sbMsg').textContent="Use at least 8 characters for the password."; return; }
+  try{ const c=await client(); const {error}=await c.auth.updateUser({password:p}); if(error) throw error; $('sbNewPass').value=""; $('sbMsg').textContent="Password saved. Next time, sign in with your email and password."; }
+  catch(e){ $('sbMsg').textContent=e.message||"Couldn't save the password."; }
+});
 
 /* ---------------- hooks from app.js ---------------- */
 Object.assign(window.PF, {
@@ -309,7 +341,7 @@ Object.assign(window.PF, {
   afterSave: schedulePush,
   openWrite,
   onTab: t => { if(t==="write") loadWrite(); if(t==="character") renderCharacter(); if(t==="settings"){ renderAI(); renderSync(); } if(t==="videos") renderPlan(); },
-  ready: async () => { CH(); renderPlan(); renderAI(); renderCharacter(); if(await refreshUser()) pull(); }
+  ready: async () => { CH(); renderPlan(); renderAI(); renderCharacter(); aiButtons(); if(await refreshUser()) pull(); else if(navigator.onLine) $("login").hidden=false; }
 });
 if(window.PF.booted) window.PF.ready();
 })();
