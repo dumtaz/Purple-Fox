@@ -192,7 +192,7 @@ function normVideo(v){
   v.output = v.output || {scenes:[]};
   v.output.scenes = (v.output.scenes||[]).map(s=>Object.assign({sid:uid(), shot:"", dur:6, vo:"", ost:""}, s));
   v.status = STATUSES.includes(v.status) ? v.status : "Prompts ready";
-  v.voiceMode = v.voiceMode || "ai"; v.speak = v.speak || "vo"; v.subs = v.subs || "voice";
+  v.voiceMode = v.voiceMode || "rec"; if(v.voiceMode==="ai" && !v.recMigrated) v.voiceMode="rec"; v.recMigrated=true; v.speak = v.speak || "vo"; v.subs = v.subs || "voice";
   v.len = v.len || "30"; v.mix = v.mix || "en-led"; v.storyboard = v.storyboard || ""; v.pillar = v.pillar || "";
   return v;
 }
@@ -311,12 +311,12 @@ function renderScenes(){
       <label class="f">中文版本 <input type="text" data-k="sub_zh" value="${esc(s.sub_zh||"")}" placeholder="用于中文配音或字幕"></label>
     </div>
     ${(s.img||s.vid||s.dir||s.sfx)?`<details class="prm"><summary>Prompts for image &amp; video tools</summary>${[["Image prompt",s.img],["Video prompt",s.vid],["Voice direction",s.dir],["Sound",s.sfx]].filter(x=>x[1]).map(([l,t])=>`<div class="pblk"><div class="row between"><b>${l}</b><button class="btn small" data-copytext="${esc(t)}">Copy</button></div><div class="ptxt">${esc(t)}</div></div>`).join("")}</details>`:""}
-    ${v.voiceMode==="scenes"?`<div class="voice"><button class="btn small rec" data-rec="${s.sid}">Record voice</button>
+    ${(v.voiceMode==="scenes"||v.voiceMode==="rec")?`<div class="voice"><button class="btn small rec" data-rec="${s.sid}">Record voice</button>
       <span class="meter"><i id="m-${s.sid}"></i></span><span class="vs" id="vs-${s.sid}">…</span>
       <button class="btn small" data-playc="${s.sid}" hidden>Play</button><button class="btn small" data-delc="${s.sid}" hidden>Delete</button></div>`
     : v.voiceMode==="ai" ? `<div class="voice"><button class="btn small" data-aiplay="${s.sid}">Hear AI voice</button><span class="vs" id="vs-${s.sid}">AI voice is made when you make the video</span></div>` : ""}
   </div>`).join("");
-  if(v.voiceMode==="scenes") sc.forEach(s=>clipState(v,s.sid));
+  if(v.voiceMode==="scenes"||v.voiceMode==="rec") sc.forEach(s=>clipState(v,s.sid));
 }
 async function clipState(v,sid){
   const c=await clipGet(v.id+"|"+sid).catch(()=>null);
@@ -435,15 +435,15 @@ async function timeline(v, onMsg){
   if(v.voiceMode==="file"){
     const f=await clipGet(v.id+"|file").catch(()=>null);
     if(f){ const buf=await decode(f.blob, v.id+"|file"); const tot=durs.reduce((a,b)=>a+b,0); durs=durs.map(d=>d*buf.duration/tot); audio.push({buf,start:0}); }
-  } else if(v.voiceMode==="scenes" || v.voiceMode==="ai"){
+  } else if(v.voiceMode==="scenes" || v.voiceMode==="rec" || v.voiceMode==="ai"){
     const own={};
-    if(v.voiceMode==="scenes") for(const s of sc){ const c=await clipGet(v.id+"|"+s.sid).catch(()=>null); if(c) own[s.sid]=c; }
-    const need=sc.filter(s=>!own[s.sid] && segments(spokenText(v,s)).length);
+    if(v.voiceMode==="scenes"||v.voiceMode==="rec") for(const s of sc){ const c=await clipGet(v.id+"|"+s.sid).catch(()=>null); if(c) own[s.sid]=c; }
+    const need=v.voiceMode==="rec" ? [] : sc.filter(s=>!own[s.sid] && segments(spokenText(v,s)).length);
     if(need.length){ try{ await ensureAI(v, need, onMsg); }catch(e){ aiErr=e; } }
     let acc=0;
     for(let i=0;i<sc.length;i++){
       const key = own[sc[i].sid] ? v.id+"|"+sc[i].sid : aiKey(v,sc[i]);
-      const c = own[sc[i].sid] || await clipGet(key).catch(()=>null);
+      const c = own[sc[i].sid] || (v.voiceMode==="rec" ? null : await clipGet(key).catch(()=>null));
       if(c && (!c.auto || c.sig===aiSig(v,sc[i]))){ const buf=await decode(c.blob, key); durs[i]=Math.max(durs[i], buf.duration+0.5); audio.push({buf,start:acc+0.2}); }
       acc+=durs[i];
     }
