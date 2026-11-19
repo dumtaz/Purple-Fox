@@ -216,7 +216,7 @@ Return ONLY JSON: {"lines":[{"en":"","zh":""}]} with exactly ${sc.length} items 
 
 /* ---------------- Supabase sync ---------------- */
 const SBV = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-const sbCfg = () => Object.assign({url:"", key:""}, LOCAL("pf-sync")||{});
+const sbCfg = () => Object.assign({url:"https://hwpegkfecginohkbzqbf.supabase.co", key:"sb_publishable_JeBDycRHr9QIL9Z6noub6g_NdnYlG42"}, LOCAL("pf-sync")||{});
 let sb=null, sbSig="", user=null, pushT=null, syncing=false;
 function syncChip(t, cls){ const c=$('syncChip'); c.textContent=t; c.className="sync "+(cls||""); }
 async function client(){
